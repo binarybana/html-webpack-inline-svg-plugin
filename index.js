@@ -25,7 +25,7 @@ class HtmlWebpackInlineSVGPlugin {
 
         this.userConfig = ''
         this.outputPath = ''
-
+        this.numPublicPathSegments = 0
         this.files = []
 
     }
@@ -81,11 +81,19 @@ class HtmlWebpackInlineSVGPlugin {
                 compilation.plugin('html-webpack-plugin-after-emit', (htmlPluginData, callback) => {
 
                     // fetch the output path from webpack
+                  // and account for publicPath
 
                     this.outputPath = compilation.outputOptions &&
                         compilation.outputOptions.path ?
                         compilation.outputOptions.path :
                         ''
+                    var publicPath = compilation.outputOptions && 
+                        compilation.outputOptions.publicPath ?
+                        compilation.outputOptions.publicPath :
+                        ''
+
+                  var publicPath = publicPath.replace(/^\/|\/$/g,"")
+                  this.numPublicPathSegments = publicPath ? publicPath.split(path.sep).length : 0
 
                     if (!this.outputPath) {
 
@@ -261,7 +269,9 @@ class HtmlWebpackInlineSVGPlugin {
             // process the imageNodes
 
             this.updateHTML(html, inlineImages)
-                .then((html) => resolve(html))
+                .then((html) => {
+                  resolve(html)
+                })
                 .catch((err) => {
 
                     console.log(chalk.underline.red('processImages hit error'))
@@ -451,7 +461,7 @@ class HtmlWebpackInlineSVGPlugin {
 
         return new Promise((resolve, reject) => {
 
-            const svgSrc = this.getImagesSrc(inlineImage)
+            var svgSrc = this.getImagesSrc(inlineImage)
 
 
             // if the image isn't valid resolve
@@ -459,8 +469,13 @@ class HtmlWebpackInlineSVGPlugin {
             if (!svgSrc) return resolve(html)
 
 
-            // read in the svg
+            // read in the svg and account for publicPath segments that need to be trimmed
 
+            if (this.numPublicPathSegments) {
+              for (var i = 0; i < this.numPublicPathSegments; i++) {
+                svgSrc = svgSrc.replace(/[^\/]+\//, "")
+              }
+            }
             fs.readFile(path.resolve(this.outputPath, svgSrc), 'utf8', (err, data) => {
 
                 if (err) reject(err)
